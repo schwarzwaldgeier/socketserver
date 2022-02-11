@@ -1,0 +1,24 @@
+{
+    "name": "schwarzwaldgeier/wetter_socket",
+    "description": "Weather station socket",
+    "type": "project",
+    "license": "wtfpl",
+    "autoload": {
+        "psr-4": {
+            "Schwarzwaldgeier\\WetterSocket\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Sebastian Schmied",
+            "email": "s.schmied@gmail.com"
+        }
+    ],
+    "require": {
+        "navarr/sockets": "^0.3.0",
+      "ext-curl": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9"
+    }
+}
