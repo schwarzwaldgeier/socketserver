@@ -19,6 +19,7 @@ require_once "Record.php";
 
 class WetterSocket extends Server
 {
+    private bool $debug;
     const DEFAULT_PORT = 7977;
 
     protected string $soundDir;
@@ -93,9 +94,10 @@ class WetterSocket extends Server
     }
 
 
-    public function __construct($ip = null, $port = self::DEFAULT_PORT)
+    public function __construct($ip = null, $port = self::DEFAULT_PORT, $debug = false)
     {
         parent::__construct($ip, $port);
+        $this->debug = $debug;
         $this->addHook(Server::HOOK_CONNECT, array($this, 'onConnect'));
         $this->addHook(Server::HOOK_INPUT, array($this, 'onInput'));
         $this->addHook(Server::HOOK_DISCONNECT, array($this, 'onDisconnect'));
@@ -155,7 +157,8 @@ class WetterSocket extends Server
 
 
             $compiledMessage = $this->buffer[0] . $this->buffer[1];
-            echo "Received: $compiledMessage" . PHP_EOL;
+            echo date("d.m.Y H:i:s").PHP_EOL;
+            echo "Received: $compiledMessage" . PHP_EOL. PHP_EOL;
             try {
                 $client->write($compiledMessage, strlen($compiledMessage));
             } catch (SocketException $e) {
@@ -167,7 +170,7 @@ class WetterSocket extends Server
             if (!$record->isValid()) {
                 continue;
             }
-            echo $record;
+            echo $record.PHP_EOL;
             $this->sendToGeier($record);
 
 
@@ -252,6 +255,8 @@ HEREDOC;
                     $this->timestampLastPlaybackShort = $now;
                 }
             }
+
+            echo "---" . PHP_EOL;
         }
 
         //TODO
@@ -398,10 +403,15 @@ HEREDOC;
         $geier = new ExternalEndpoint(GEIER);
         $geier->getParamsFromRecord($record);
         $geier->method = "GET";
+        if ($this->debug){
+            echo "Debug mode, not sending data to website" . PHP_EOL;
+            return;
+        }
         $result = $geier->send();
 
         if ($result["status"] !== 200) {
             error_log("Failed to send to website: " . $result["status"]);
+
         } else {
             echo "Sent to website. Response was: " . $result["response"] . PHP_EOL;
         }

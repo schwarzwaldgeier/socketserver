@@ -8,7 +8,7 @@ use function trim;
 
 class Record
 {
-    public const WIND_DIRECTION_OFFSET = 16;
+    public const WIND_DIRECTION_OFFSET = 16.0;
     public const TIMM_FACTOR = 0.74;
 
 
@@ -42,24 +42,19 @@ class Record
     public function __toString(): string
     {
         $uncalibratedDirection = $this->uncalibratedWindDirection ?? "(zero wind)";
-        $calibratedDirection = $this->windDirection ?? "(zero wind)";
+        $calibratedDirection = $this->winddirection ?? "(zero wind)";
         return <<<HEREDOC
 Windspeed: $this->windspeed km/h
 Windspeed calibrated: $this->windspeedCalibrated km/h
-
 Max Windspeed: $this->windspeedMax km/h
 Max Windspeed calibrated: $this->windspeedMaxCalibrated km/h
-
 Direction: $uncalibratedDirection
 Direction calibrated: $calibratedDirection
-
 Windchill: $this->windchill °C
-
 Time: $this->secondsSinceStartup seconds after station start
 Temperature: $this->temperature °C
 Pressure: $this->pressure hPa
 Humidity: $this->humidity%
-
 
 HEREDOC;
 
@@ -147,7 +142,8 @@ HEREDOC;
             } else
             {
                 $this->uncalibratedWindDirection = $this->winddirection;
-                $this->winddirection = ((int)$this->winddirection - self::WIND_DIRECTION_OFFSET) % 360;
+                $this->winddirection = ((int)round($this->uncalibratedWindDirection,0) + 360 - self::WIND_DIRECTION_OFFSET) % 360;
+
             }
         }
 

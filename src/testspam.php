@@ -30,10 +30,17 @@ while (true) {
         $te = rnd("TE", 0, 35);
         $dr = rnd("DR", 950,1050);
         $fe =rnd("FE", 0, 100);
-        $ws = rnd("WS", 0, 300);
-        $wd = rnd("WD", 0, 300);
-        $wc = rnd("WC", 0,10);
-        $wv = rnd("WV", -099997.00,-099997.00);
+        $ws = rnd("WS", 0, 30);
+        $wd = rnd("WD", 10, 40);
+        $wc = rnd("WC", 0,20);
+        $wv = (float)rnd("", 340,380);
+        if ($wv > 360){
+            $wv = -099997.00; //zero wind
+            $ws = "WS0.0";
+            $wd = "WD0.0";
+        }
+        $wv = "WV" . $wv;
+
         $hour = $time->format("H:i:s");;
         $date = $time->format("d.m.y");
         $str = "{$hour}, {$date}, {$te}, {$dr}, {$fe}, {$ws}, {$wd}, {$wc}, {$wv}, $sep";

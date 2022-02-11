@@ -19,13 +19,18 @@ $ip = '192.168.111.11';
 if (isset($argv[1])){
     $ip = $argv[1];
 }
+$debug = false;
+if (in_array("--debug", $argv)){
+    echo "Debug mode enabled" . PHP_EOL;
+    $debug = true;
+}
 
 
 try {
     date_default_timezone_set('Europe/Berlin');
 
     println("Starting server on $ip:$port");
-    $server = new WetterSocket($ip, $port);
+    $server = new WetterSocket($ip, $port, $debug);
 
     $server->run();
 
