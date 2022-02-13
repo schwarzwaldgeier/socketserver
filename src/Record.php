@@ -68,6 +68,11 @@ HEREDOC;
                 return false;
             }
         }
+
+        if ($this->uncalibratedWindDirection > 360){
+            error_log("Invalid wind direction");
+            return false;
+        }
         return true;
     }
 
