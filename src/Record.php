@@ -69,7 +69,7 @@ HEREDOC;
             }
         }
 
-        if ($this->uncalibratedWindDirection > 360){
+        if (isset($this->uncalibratedWindDirection) && $this->uncalibratedWindDirection > 360){
             error_log("Invalid wind direction");
             return false;
         }
@@ -138,6 +138,7 @@ HEREDOC;
             }
 
             $this->{$fieldname} = (float)$value;
+            $this->{$fieldname} = round($this->{$fieldname}, 0);
         }
 
         if (isset($this->winddirection)){
@@ -153,11 +154,11 @@ HEREDOC;
         }
 
         if (isset($this->windspeed)){
-            $this->windspeedCalibrated = $this->windspeed * self::TIMM_FACTOR;
+            $this->windspeedCalibrated = round($this->windspeed * self::TIMM_FACTOR, 0);
         }
 
         if (isset($this->windspeedMax)){
-            $this->windspeedMaxCalibrated = $this->windspeedMax * self::TIMM_FACTOR;
+            $this->windspeedMaxCalibrated = round($this->windspeedMax * self::TIMM_FACTOR, 0);
         }
     }
 
