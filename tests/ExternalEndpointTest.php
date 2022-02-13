@@ -15,6 +15,13 @@ class ExternalEndpointTest extends TestCase
         $endpoint = new ExternalEndpoint(GEIER);
 
         $endpoint->getParamsFromRecord($record);
+        print_r($endpoint->parameters);
+        self::assertEquals(56, $endpoint->parameters['wd']);
+
+
+        //TODO MOCK!
+            /*
+             *
         $endpoint->method="GET";
         $result = $endpoint->send();
         print_r($result);
@@ -23,5 +30,6 @@ class ExternalEndpointTest extends TestCase
         $this->assertArrayHasKey('response', $result);
         $this->assertStringContainsString( "ThatWasGood", $result['response']);
         $this->assertEquals( 200, $result['status']);
+            */
     }
 }
