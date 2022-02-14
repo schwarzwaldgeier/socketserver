@@ -1,5 +1,6 @@
 ## project specific
 *.secret.php
+.phpunit.result.cache
 
 
 ##### Windows
