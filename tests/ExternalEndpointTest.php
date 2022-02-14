@@ -11,7 +11,7 @@ class ExternalEndpointTest extends TestCase
 
         echo $record;
 
-        require_once "../src/endpoints.secret.php";
+        require_once __DIR__ . "/../src/endpoints.secret.php";
         $endpoint = new ExternalEndpoint(GEIER);
 
         $endpoint->getParamsFromRecord($record);

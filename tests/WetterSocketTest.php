@@ -12,7 +12,7 @@ class WetterSocketTest extends TestCase
      * @throws SocketException
      */
     public function testSaveCurrentState(){
-        require_once("../src/WetterSocket.php");
+        require_once(__DIR__ . "/../src/WetterSocket.php");
         $savegame = "/tmp/test";
         $oldSocket = new WetterSocket("127.0.0.1", 7950, true, $savegame);
         $records = [];
@@ -43,7 +43,7 @@ class WetterSocketTest extends TestCase
 
     }
     public function testDiscardOldSavedStates(){
-        require_once("../src/WetterSocket.php");
+        require_once(__DIR__ . "/../src/WetterSocket.php");
         $savegame = "/tmp/test";
         $json = <<<HEREDOC
 {
@@ -98,7 +98,7 @@ HEREDOC;
 
     private function createSavefile(): string
     {
-        require_once("../src/WetterSocket.php");
+        require_once(__DIR__ . "/../src/WetterSocket.php");
         $savegame = "/tmp/test";
         if (is_file($savegame)) {
             unlink($savegame);

@@ -88,7 +88,7 @@ class WetterSocket extends Server
                 continue;
             }
 
-            $ageDiff = $r->getAgeDiff($this->newestRecordTimestamp);
+            $ageDiff = abs($r->getAgeDiff($this->newestRecordTimestamp));
 
             if ($ageDiff > (self::MAX_RECORD_AGE_FOR_AVERAGING * 60)) {
                 continue;
@@ -99,7 +99,7 @@ class WetterSocket extends Server
                 $num++;
             }
         }
-        if ($num === 0){
+        if ($num === 0) {
             return 0;
         }
         return $sum / $num;
@@ -114,9 +114,9 @@ class WetterSocket extends Server
                 continue;
             }
 
-            $ageDiff = $r->getAgeDiff($this->newestRecordTimestamp);
+            $ageDiff = abs($r->getAgeDiff($this->newestRecordTimestamp));
 
-            if ($ageDiff > (self::MAX_RECORD_AGE_FOR_AVERAGING * 60)){
+            if ($ageDiff > (self::MAX_RECORD_AGE_FOR_AVERAGING * 60)) {
                 continue;
             }
 
@@ -136,7 +136,7 @@ class WetterSocket extends Server
     {
         $dirs = [];
         foreach ($this->records as $r) {
-            $ageDiff = $r->getAgeDiff($this->newestRecordTimestamp);
+            $ageDiff = abs($r->getAgeDiff($this->newestRecordTimestamp));
 
             if ($ageDiff > (self::MAX_RECORD_AGE_FOR_AVERAGING * 60)) {
                 continue;
@@ -189,7 +189,7 @@ class WetterSocket extends Server
 
         $loaded = false;
         if (is_file($this->savedStateFile)) {
-            echo "loading saved state" . PHP_EOL;
+            echo "Loading saved state" . PHP_EOL;
             $loaded = $this->initFromSavedState($this->savedStateFile);
         }
         if (!$loaded) {
@@ -275,14 +275,7 @@ class WetterSocket extends Server
                 continue;
             }
 
-
-            if ($record->secondsSinceStartup > $this->newestRecordTimestamp) {
-                echo "most recent record" . PHP_EOL;
-                $this->newestRecordTimestamp = $record->secondsSinceStartup;
-            } else {
-                echo "sdfsdf";
-            }
-
+            $this->newestRecordTimestamp = $record->secondsSinceStartup;
 
             echo $record . PHP_EOL;
             $this->sendToGeier($record);
@@ -558,60 +551,74 @@ HEREDOC;
     {
 
         $now = time();
+        if (!is_file($file)) {
+            return false;
+        }
+
+        $fileAge = $now - filemtime($file);
+        if ($fileAge > self::MAX_RECORD_AGE_FOR_AVERAGING * 60) {
+            unlink($file);
+            echo "$file creation date too old ({$fileAge}s), ignoring" . PHP_EOL;
+            return false;
+        }
+
         $str = file_get_contents($file);
         $json = json_decode($str);
 
         if (!isset($json->time)) {
             error_log("state time not set");
+            unlink($file);
             return false;
         }
 
         $stateTime = $json->time;
         if (!is_int($stateTime)) {
             error_log("state time not int");
-            return false;
-        }
-
-        if ($now - $stateTime > self::MAX_RECORD_AGE_FOR_AVERAGING * 60) {
-            error_log("state found in $file too old");
             unlink($file);
             return false;
         }
 
-        if (empty($json->records)) {
-            error_log("no records in state");
+        if ($now - $stateTime > self::MAX_RECORD_AGE_FOR_AVERAGING * 60) {
+            error_log("records found in $file are too old");
+            unlink($file);
             return false;
         }
 
-        $loadedRecords = 0;
-        foreach ($json->records as $recordStr) {
-            try {
-                $record = new Record($recordStr);
-                if (!$record->isValid()) {
-                    error_log("Ignored invalid record");
-                    continue;
-                }
-                $this->records[] = $record;
-                if ($record->secondsSinceStartup > $this->newestRecordTimestamp) {
-                    $this->newestRecordTimestamp = $record->secondsSinceStartup;
-
-                }
-                $loadedRecords++;
-            } catch (Exception $e) {
-                error_log($e->getMessage());
-            }
-        }
 
         if (isset($json->last_full_playback) && is_int($json->last_full_playback)) {
             $this->timestampLastPlaybackFull = $json->last_full_playback;
+            echo "Radio playback time (full) set from state" . PHP_EOL;
         }
 
         if (isset($json->last_short_playback) && is_int($json->last_full_playback)) {
             $this->timestampLastPlaybackShort = $json->last_short_playback;
+            echo "Radio playback time (short) set from state" . PHP_EOL;
         }
 
+        if (empty($json->records)) {
+            echo "No records in state, ignoring" . PHP_EOL;
+        } else {
+            $loadedRecords = 0;
+            foreach ($json->records as $recordStr) {
+                try {
+                    $record = new Record($recordStr);
+                    if (!$record->isValid()) {
+                        error_log("Ignored invalid record");
+                        continue;
+                    }
+                    $this->records[] = $record;
+                    if ($record->secondsSinceStartup > $this->newestRecordTimestamp) {
+                        $this->newestRecordTimestamp = $record->secondsSinceStartup;
 
-        echo "$loadedRecords records loaded from saved state" . PHP_EOL;
+                    }
+                    $loadedRecords++;
+                } catch (Exception $e) {
+                    error_log($e->getMessage());
+                }
+            }
+            echo "$loadedRecords records loaded from saved state" . PHP_EOL;
+        }
+        unlink($file);
         return true;
 
 
@@ -620,7 +627,6 @@ HEREDOC;
     private function disconnectClients(): void
     {
         foreach ($this->clients as $client) {
-            echo "Disconnecting client";
             $this->disconnect($client);
         }
     }
