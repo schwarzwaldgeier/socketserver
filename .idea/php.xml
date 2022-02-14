@@ -43,7 +43,7 @@
   <component name="PhpInterpreters">
     <interpreters>
       <interpreter id="950eda77-93d4-47dc-8fa8-a6dec0c8bc10" name="meteo@meteogeier.ddns.net:2222 key" home="sshConfig://DATA" debugger_id="php.debugger.XDebug">
-        <remote_data INTERPRETER_PATH="/usr/bin/php" HELPERS_PATH="/home/meteo/.phpstorm_helpers" INITIALIZED="false" VALID="true" RUN_AS_ROOT_VIA_SUDO="false" SSH_CONFIG_ID="99216bc7-b8d3-40f1-840a-e18a2d0381ed" SSH_CONFIG_NAME="meteo@meteogeier.ddns.net:2222 key" SSH_CREDENTIALS_ID="sshConfig://meteo@meteogeier.ddns.net:2222 key" />
+        <remote_data INTERPRETER_PATH="/usr/bin/php" HELPERS_PATH="/home/meteo/.phpstorm_helpers" INITIALIZED="false" VALID="true" RUN_AS_ROOT_VIA_SUDO="false" SSH_CONFIG_ID="99216bc7-b8d3-40f1-840a-e18a2d0381ed" SSH_CONFIG_NAME="meteo@wetterserver.schwarzwaldgeier.de:2222 key" SSH_CREDENTIALS_ID="sshConfig://meteo@meteogeier.ddns.net:2222 key" />
       </interpreter>
     </interpreters>
   </component>

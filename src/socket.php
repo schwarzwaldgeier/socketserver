@@ -345,6 +345,7 @@ HEREDOC;
         exec("$commandStr > /dev/null", $output, $result_code);
         if ($result_code !== 0) {
             error_log("Failed to join wav files");
+            error_log($commandStr);
             foreach ($output as $o){
                 error_log($o);
             }
@@ -401,7 +402,7 @@ HEREDOC;
             return;
         }
         require_once $secrets;
-        $geier = new ExternalEndpoint(GEIER);
+        $geier = new ExternalEndpoint(GEIER, TOKEN);
         $geier->getParamsFromRecord($record);
         $geier->method = "GET";
         if ($this->debug){

@@ -7,10 +7,12 @@ class ExternalEndpoint
     public string $baseUrl;
     public array $parameters;
     public string $method;
+    public string $token;
 
-    public function __construct($baseUrl)
+    public function __construct($baseUrl, $token = "")
     {
         $this->baseUrl = $baseUrl;
+        $this->token = $token;
     }
 
     public function send(): array
@@ -81,6 +83,7 @@ class ExternalEndpoint
             "oms" => $record->windspeedMax,
             "hu" => $record->humidity,
             "wc" => $record->windchill,
+            "token" => $this->token
         ];
     }
 }
