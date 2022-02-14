@@ -41,6 +41,13 @@ class Record
         $this->parseStationString($line);
     }
 
+    public static function getWindDirectionNicename(float $windDirection): string
+    {
+        $directions = array('n', 'nno', 'no', 'ono', 'o', 'oso', 'so', 'sso', 's',
+            'ssw', 'sw', 'wsw', 'w', 'wnw', 'nw', 'nnw', 'n');
+        return $directions[round($windDirection / 22.5)];
+    }
+
 
     public function __toString(): string
     {
@@ -77,6 +84,11 @@ HEREDOC;
             return false;
         }
         return true;
+    }
+
+    public function getAgeDiff(int $referenceAge):int
+    {
+        return $referenceAge - $this->secondsSinceStartup;
     }
 
     private function parseStationString($str)
@@ -141,7 +153,7 @@ HEREDOC;
             }
 
             $this->{$fieldname} = (float)$value;
-            $this->{$fieldname} = round($this->{$fieldname}, 0);
+            $this->{$fieldname} = round($this->{$fieldname});
         }
 
         if (isset($this->winddirection)){
@@ -151,17 +163,17 @@ HEREDOC;
             } else
             {
                 $this->uncalibratedWindDirection = $this->winddirection;
-                $this->winddirection = ((int)round($this->uncalibratedWindDirection,0) + 360 - self::WIND_DIRECTION_OFFSET) % 360;
+                $this->winddirection = ((int)round($this->uncalibratedWindDirection) + 360 - self::WIND_DIRECTION_OFFSET) % 360;
 
             }
         }
 
         if (isset($this->windspeed)){
-            $this->windspeedCalibrated = round($this->windspeed * self::TIMM_FACTOR, 0);
+            $this->windspeedCalibrated = round($this->windspeed * self::TIMM_FACTOR);
         }
 
         if (isset($this->windspeedMax)){
-            $this->windspeedMaxCalibrated = round($this->windspeedMax * self::TIMM_FACTOR, 0);
+            $this->windspeedMaxCalibrated = round($this->windspeedMax * self::TIMM_FACTOR);
         }
     }
 

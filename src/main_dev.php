@@ -7,7 +7,7 @@ use Navarr\Socket\Exception\SocketException;
 
 pcntl_async_signals(true);
 $dir = dirname(__FILE__);
-require_once "socket.php";
+require_once "WetterSocket.php";
 require_once "$dir/../vendor/autoload.php";
 
 

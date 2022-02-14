@@ -22,7 +22,7 @@ require_once "Record.php";
 
 class WetterSocket extends Server
 {
-    const MAX_RECORDS_AMOUNT = 20;
+    const MAX_RECORD_AGE_FOR_AVERAGING = 20;
     private bool $debug;
     const DEFAULT_PORT = 7977;
 
@@ -30,6 +30,7 @@ class WetterSocket extends Server
     protected array $records = [];
     private string $savedStateFile;
     private bool $alreadySaved = false;
+    private int $newestRecordTimestamp = 0;
 
     /**
      * @return array
@@ -80,42 +81,69 @@ class WetterSocket extends Server
     public function getSpeedAverage(): float
     {
         $sum = 0.0;
+        $num = 0;
 
-        foreach ($this->records as $measurement) {
-            if (isset($measurement->windspeed)) {
-                $sum += $measurement->windspeed;
+        foreach ($this->records as $r) {
+            if (!$r instanceof Record) {
+                continue;
+            }
+
+            $ageDiff = $r->getAgeDiff($this->newestRecordTimestamp);
+
+            if ($ageDiff > (self::MAX_RECORD_AGE_FOR_AVERAGING * 60)) {
+                continue;
+            }
+
+            if (isset($r->windspeed)) {
+                $sum += $r->windspeed;
+                $num++;
             }
         }
-        return $sum / count($this->records);
+        if ($num === 0){
+            return 0;
+        }
+        return $sum / $num;
     }
 
-    public function getStrongestGust()
+    public function getStrongestGust(): ?Record
     {
         $strongest = null;
-        foreach ($this->records as $record) {
-            if (!($record instanceof Record)) {
+        foreach ($this->records as $r) {
+
+            if (!($r instanceof Record)) {
+                continue;
+            }
+
+            $ageDiff = $r->getAgeDiff($this->newestRecordTimestamp);
+
+            if ($ageDiff > (self::MAX_RECORD_AGE_FOR_AVERAGING * 60)){
                 continue;
             }
 
             if ($strongest === null) {
-                $strongest = $record;
+                $strongest = $r;
             }
 
-            if ($strongest instanceof Record) {
-                if ($record->windspeedMax >= $strongest->windspeedMax) {
-                    $strongest = $record;
-                }
+            if ($r->windspeedMax >= $strongest->windspeedMax) {
+                $strongest = $r;
             }
         }
+
         return $strongest;
     }
 
     public function getDirectionAverage(): int
     {
         $dirs = [];
-        foreach ($this->records as $measurement) {
-            if (isset($measurement->winddirection)) {
-                $dirs[] = $measurement->winddirection;
+        foreach ($this->records as $r) {
+            $ageDiff = $r->getAgeDiff($this->newestRecordTimestamp);
+
+            if ($ageDiff > (self::MAX_RECORD_AGE_FOR_AVERAGING * 60)) {
+                continue;
+            }
+
+            if (isset($r->winddirection)) {
+                $dirs[] = $r->winddirection;
             }
         }
 
@@ -151,7 +179,7 @@ class WetterSocket extends Server
         $signals = [SIGHUP, SIGINT, SIGTERM, SIGABRT];
         foreach ($signals as $signo) {
 
-          pcntl_signal($signo, [$this, "handleTerminations"]);
+            pcntl_signal($signo, [$this, "handleTerminations"]);
 
         }
 
@@ -174,8 +202,8 @@ class WetterSocket extends Server
     #[NoReturn] public function handleTerminations(int $signo, mixed $signinfo)
     {
         echo "Got signal $signo" . PHP_EOL;
-        if (is_array($signinfo)){
-            foreach ($signinfo as $key=>$value){
+        if (is_array($signinfo)) {
+            foreach ($signinfo as $key => $value) {
                 echo "\t$key: $value" . PHP_EOL;
             }
         }
@@ -246,12 +274,22 @@ class WetterSocket extends Server
             if (!$record->isValid()) {
                 continue;
             }
+
+
+            if ($record->secondsSinceStartup > $this->newestRecordTimestamp) {
+                echo "most recent record" . PHP_EOL;
+                $this->newestRecordTimestamp = $record->secondsSinceStartup;
+            } else {
+                echo "sdfsdf";
+            }
+
+
             echo $record . PHP_EOL;
             $this->sendToGeier($record);
 
 
             $this->records[] = $record;
-            $recordBufferSize = self::MAX_RECORDS_AMOUNT;
+            $recordBufferSize = self::MAX_RECORD_AGE_FOR_AVERAGING;
 
 
             while (count($this->records) > $recordBufferSize) {
@@ -267,17 +305,22 @@ class WetterSocket extends Server
             if ($dirAvg === -1) {
                 $directionAverage = "";
             } else {
-                $directionAverage = $this->getWindDirectionNicename($dirAvg);
+                $directionAverage = Record::getWindDirectionNicename($dirAvg);
             }
 
             $speedAverage = $this->getSpeedAverage();
 
             $recordWithStrongestGust = $this->getStrongestGust();
-            $strongestGustSpeed = $recordWithStrongestGust->windspeedMax;
-            if (isset($recordWithStrongestGust->winddirection)) {
-                $strongestGustNiceDirection = $this->getWindDirectionNicename($recordWithStrongestGust->winddirection);
+            if ($recordWithStrongestGust instanceof Record) {
+                $strongestGustSpeed = $recordWithStrongestGust->windspeedMax;
+                if (isset($recordWithStrongestGust->winddirection)) {
+                    $strongestGustNiceDirection = Record::getWindDirectionNicename($recordWithStrongestGust->winddirection);
+                } else {
+                    $strongestGustNiceDirection = ""; //nullwind
+                }
             } else {
-                $strongestGustNiceDirection = ""; //nullwind
+                $strongestGustSpeed = 0;
+                $strongestGustNiceDirection = "";
             }
             $now = time();
 
@@ -289,7 +332,7 @@ class WetterSocket extends Server
 
             if ($timeSinceLastFullPlayback >= $this->intervalFullAnnouncement) {
                 if (isset($record->winddirection)) {
-                    $direction = $this->getWindDirectionNicename($record->winddirection);
+                    $direction = Record::getWindDirectionNicename($record->winddirection);
                 } else {
                     $direction = "";
                 }
@@ -309,7 +352,7 @@ HEREDOC;
 
                 if ($timeSinceLastShortPlayback > $this->intervalShortAnnouncement) {
                     if (isset($record->winddirection)) {
-                        $direction = $this->getWindDirectionNicename($record->winddirection);
+                        $direction = Record::getWindDirectionNicename($record->winddirection);
                     } else {
                         $direction = "";
                     }
@@ -328,13 +371,6 @@ HEREDOC;
 
             echo "---" . PHP_EOL;
         }
-    }
-
-    public function getWindDirectionNicename(float $windDirection): string
-    {
-        $directions = array('n', 'nno', 'no', 'ono', 'o', 'oso', 'so', 'sso', 's',
-            'ssw', 'sw', 'wsw', 'w', 'wnw', 'nw', 'nnw', 'n');
-        return $directions[round($windDirection / 22.5)];
     }
 
     public function createSoundArrayFromString(string $messages): array
@@ -484,7 +520,7 @@ HEREDOC;
 
     public function saveCurrentState(): bool
     {
-        if ($this->alreadySaved){
+        if ($this->alreadySaved) {
             return false;
         }
         $recordInits = [];
@@ -518,7 +554,7 @@ HEREDOC;
         return false;
     }
 
-    public function initFromSavedState($file): bool
+    protected function initFromSavedState($file): bool
     {
 
         $now = time();
@@ -536,7 +572,7 @@ HEREDOC;
             return false;
         }
 
-        if ($now - $stateTime > self::MAX_RECORDS_AMOUNT * 60) {
+        if ($now - $stateTime > self::MAX_RECORD_AGE_FOR_AVERAGING * 60) {
             error_log("state found in $file too old");
             unlink($file);
             return false;
@@ -550,7 +586,16 @@ HEREDOC;
         $loadedRecords = 0;
         foreach ($json->records as $recordStr) {
             try {
-                $this->records[] = new Record($recordStr);
+                $record = new Record($recordStr);
+                if (!$record->isValid()) {
+                    error_log("Ignored invalid record");
+                    continue;
+                }
+                $this->records[] = $record;
+                if ($record->secondsSinceStartup > $this->newestRecordTimestamp) {
+                    $this->newestRecordTimestamp = $record->secondsSinceStartup;
+
+                }
                 $loadedRecords++;
             } catch (Exception $e) {
                 error_log($e->getMessage());
