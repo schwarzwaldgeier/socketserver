@@ -343,7 +343,7 @@ HEREDOC;
             } else {
 
 
-                if ($timeSinceLastShortPlayback > $this->intervalShortAnnouncement) {
+                if ($timeSinceLastShortPlayback > $this->intervalShortAnnouncement && $timeSinceLastFullPlayback > $this->intervalShortAnnouncement ) {
                     if (isset($record->winddirection)) {
                         $direction = Record::getWindDirectionNicename($record->winddirection);
                     } else {
