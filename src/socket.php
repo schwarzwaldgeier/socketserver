@@ -223,11 +223,13 @@ class WetterSocket extends Server
                     $direction = "";
                 }
                 $message = <<<HEREDOC
-beep beep p3 hier-ist-die-wetterstation-des-gleitschirmvereins-baden-auf-dem-merkur p3
-aktuelle-windmessung $direction $record->windspeed kmh p1
-durchschnittlicher-wind-der-letzten-20-minuten p1 $directionAverage p1 $speedAverage kmh p1
-staerkste-windboe-der-letzten-20-minuten $strongestGustNiceDirection $strongestGustSpeed kmh p1
-tschuess p3
+p3
+hier-ist-die-wetterstation-des-gleitschirmvereins-baden-auf-dem-merkur
+aktuelle-windmessung $direction $record->windspeed kmh
+durchschnittlicher-wind-der-letzten-20-minuten $directionAverage $speedAverage kmh
+staerkste-windboe-der-letzten-20-minuten $strongestGustNiceDirection $strongestGustSpeed kmh
+tschuess
+p3
 HEREDOC;
                 $this->playAnnouncement($message);
                 $this->timestampLastPlaybackFull = $now;
@@ -242,13 +244,10 @@ HEREDOC;
                         $direction = "";
                     }
                     $message = <<<HEREDOC
-beep beep p3
-aktuelle-windmessung p3 $direction $record->windspeed 
-p3 
-staerkste-windboe p1 $strongestGustNiceDirection p1 $strongestGustSpeed 
-p3 
-durchschnitt p1 $directionAverage p1 $speedAverage p1 kmh 
 p3
+aktuelle-windmessung $direction $record->windspeed 
+staerkste-windboe $strongestGustNiceDirection $strongestGustSpeed 
+durchschnitt  $directionAverage  $speedAverage  kmh 
 tschuess
 p3
 HEREDOC;
