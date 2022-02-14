@@ -16,7 +16,8 @@
     ],
     "require": {
         "navarr/sockets": "^0.3.0",
-      "ext-curl": "*"
+      "ext-curl": "*",
+      "ext-pcntl": "*"
     },
     "require-dev": {
         "phpunit/phpunit": "^9"

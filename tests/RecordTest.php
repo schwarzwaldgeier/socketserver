@@ -14,10 +14,10 @@ class RecordTest extends TestCase
 
     public function testCalculateWindDirectionOffset(){
         $record = new Record("22:51:02, 08.02.22, TE21.26, DR1046.95, FE32.07, WS16.34, WD30.25, WC3.09, WV5.0,");
-        self::assertEquals(345.0, $record->winddirection);
+        self::assertEquals(349, $record->winddirection);
 
         $record = new Record("22:51:02, 08.02.22, TE21.26, DR1046.95, FE32.07, WS16.34, WD30.25, WC3.09, WV355.0,");
-        self::assertEquals(339.0, $record->winddirection);
+        self::assertEquals(339, $record->winddirection);
 
     }
 

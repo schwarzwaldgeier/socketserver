@@ -5,7 +5,7 @@ namespace Schwarzwaldgeier\WetterSocket;
 
 use Navarr\Socket\Exception\SocketException;
 
-
+pcntl_async_signals(true);
 $dir = dirname(__FILE__);
 require_once "socket.php";
 require_once "$dir/../vendor/autoload.php";
@@ -33,6 +33,7 @@ try {
     $server = new WetterSocket($ip, $port, $debug);
 
     $server->run();
+
 
 
 } catch (SocketException $e) {

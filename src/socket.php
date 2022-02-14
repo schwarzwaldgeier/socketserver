@@ -3,9 +3,12 @@
 namespace Schwarzwaldgeier\WetterSocket;
 
 use Exception;
+use JetBrains\PhpStorm\NoReturn;
 use Navarr\Socket\Exception\SocketException;
 use Navarr\Socket\Socket;
 use Navarr\Socket\Server;
+
+
 use function atan2;
 use function cos;
 use function deg2rad;
@@ -19,17 +22,54 @@ require_once "Record.php";
 
 class WetterSocket extends Server
 {
+    const MAX_RECORDS_AMOUNT = 20;
     private bool $debug;
     const DEFAULT_PORT = 7977;
 
     protected string $soundDir;
     protected array $records = [];
+    private string $savedStateFile;
+    private bool $alreadySaved = false;
+
+    /**
+     * @return array
+     */
+    public function getRecords(): array
+    {
+        return $this->records;
+    }
+
+    /**
+     * @param array $records
+     */
+    public function setRecords(array $records): void
+    {
+        $this->records = $records;
+    }
+
     private array $buffer = [];
-    private int $timestampLastPlaybackShort;
+    private int $timestampLastPlaybackShort = 0;
+
+    /**
+     * @return int
+     */
+    public function getTimestampLastPlaybackShort(): int
+    {
+        return $this->timestampLastPlaybackShort;
+    }
+
+    /**
+     * @return int
+     */
+    public function getTimestampLastPlaybackFull(): int
+    {
+        return $this->timestampLastPlaybackFull;
+    }
+
     //private int $intervalShortAnnouncement = 1;
     private int $intervalShortAnnouncement = 5 * 60;
 
-    private int $timestampLastPlaybackFull;
+    private int $timestampLastPlaybackFull = 0;
     //private int $intervalFullAnnouncement = 60;
     private int $intervalFullAnnouncement = 60 * 60;
 
@@ -53,16 +93,16 @@ class WetterSocket extends Server
     {
         $strongest = null;
         foreach ($this->records as $record) {
-            if (!($record instanceof Record)){
-               continue;
+            if (!($record instanceof Record)) {
+                continue;
             }
 
-            if ($strongest === null){
+            if ($strongest === null) {
                 $strongest = $record;
             }
 
-            if ($strongest instanceof Record){
-                if ($record->windspeedMax >= $strongest->windspeedMax){
+            if ($strongest instanceof Record) {
+                if ($record->windspeedMax >= $strongest->windspeedMax) {
                     $strongest = $record;
                 }
             }
@@ -94,7 +134,7 @@ class WetterSocket extends Server
     }
 
 
-    public function __construct($ip = null, $port = self::DEFAULT_PORT, $debug = false)
+    public function __construct($ip = null, $port = self::DEFAULT_PORT, $debug = false, $savedStateFile = "/tmp/wetter_socket_state.json")
     {
         parent::__construct($ip, $port);
         $this->debug = $debug;
@@ -105,9 +145,45 @@ class WetterSocket extends Server
         $dir = dirname(__FILE__);
         $this->soundDir = "$dir/../sound";
 
+        $this->savedStateFile = $savedStateFile;
 
-        $this->timestampLastPlaybackFull = time();
-        $this->timestampLastPlaybackShort = time();
+
+        $signals = [SIGHUP, SIGINT, SIGTERM, SIGABRT];
+        foreach ($signals as $signo) {
+
+          pcntl_signal($signo, [$this, "handleTerminations"]);
+
+        }
+
+        register_shutdown_function([$this, 'saveCurrentState']);
+        register_shutdown_function([$this, 'disconnectClients']);
+
+
+        $loaded = false;
+        if (is_file($this->savedStateFile)) {
+            echo "loading saved state" . PHP_EOL;
+            $loaded = $this->initFromSavedState($this->savedStateFile);
+        }
+        if (!$loaded) {
+            $this->timestampLastPlaybackFull = time();
+            $this->timestampLastPlaybackShort = time();
+        }
+
+    }
+
+    #[NoReturn] public function handleTerminations(int $signo, mixed $signinfo)
+    {
+        echo "Got signal $signo" . PHP_EOL;
+        if (is_array($signinfo)){
+            foreach ($signinfo as $key=>$value){
+                echo "\t$key: $value" . PHP_EOL;
+            }
+        }
+
+        $this->saveCurrentState();
+        $this->disconnectClients();
+
+        die();
     }
 
 
@@ -138,7 +214,7 @@ class WetterSocket extends Server
 
             //check if buffer is at the right state, i.e. timestamp is in first message, rest in  second
             $partsFirst = explode(",", $this->buffer[0]);
-            if (!isset($this->buffer[1])){
+            if (!isset($this->buffer[1])) {
                 continue;
             }
             $partsSecond = explode(",", $this->buffer[1]);
@@ -157,8 +233,8 @@ class WetterSocket extends Server
 
 
             $compiledMessage = $this->buffer[0] . $this->buffer[1];
-            echo date("d.m.Y H:i:s").PHP_EOL;
-            echo "Received: $compiledMessage" . PHP_EOL. PHP_EOL;
+            echo date("d.m.Y H:i:s") . PHP_EOL;
+            echo "Received: $compiledMessage" . PHP_EOL . PHP_EOL;
             try {
                 $client->write($compiledMessage, strlen($compiledMessage));
             } catch (SocketException $e) {
@@ -170,16 +246,12 @@ class WetterSocket extends Server
             if (!$record->isValid()) {
                 continue;
             }
-            echo $record.PHP_EOL;
+            echo $record . PHP_EOL;
             $this->sendToGeier($record);
 
 
-
-
             $this->records[] = $record;
-            $recordBufferSize = 20;
-
-
+            $recordBufferSize = self::MAX_RECORDS_AMOUNT;
 
 
             while (count($this->records) > $recordBufferSize) {
@@ -192,7 +264,7 @@ class WetterSocket extends Server
 
 
             $dirAvg = $this->getDirectionAverage();
-            if ($dirAvg === -1){
+            if ($dirAvg === -1) {
                 $directionAverage = "";
             } else {
                 $directionAverage = $this->getWindDirectionNicename($dirAvg);
@@ -216,8 +288,7 @@ class WetterSocket extends Server
             echo "time since last short message: $timeSinceLastShortPlayback" . PHP_EOL;
 
             if ($timeSinceLastFullPlayback >= $this->intervalFullAnnouncement) {
-                if (isset($record->winddirection))
-                {
+                if (isset($record->winddirection)) {
                     $direction = $this->getWindDirectionNicename($record->winddirection);
                 } else {
                     $direction = "";
@@ -237,8 +308,7 @@ HEREDOC;
 
 
                 if ($timeSinceLastShortPlayback > $this->intervalShortAnnouncement) {
-                    if (isset($record->winddirection))
-                    {
+                    if (isset($record->winddirection)) {
                         $direction = $this->getWindDirectionNicename($record->winddirection);
                     } else {
                         $direction = "";
@@ -258,13 +328,6 @@ HEREDOC;
 
             echo "---" . PHP_EOL;
         }
-
-        //TODO
-        /*
-         * * send to geier
-         * * create sound file
-         * * play sound file
-         */
     }
 
     public function getWindDirectionNicename(float $windDirection): string
@@ -345,16 +408,16 @@ HEREDOC;
         if ($result_code !== 0) {
             error_log("Failed to join wav files");
             error_log($commandStr);
-            foreach ($output as $o){
+            foreach ($output as $o) {
                 error_log($o);
             }
             return;
         }
 
         echo "Playing: " . PHP_EOL;
-        foreach ($wavefiles as $f){
+        foreach ($wavefiles as $f) {
             $base = basename($f);
-            if (preg_match("/^p[0-3]$/", $base)){
+            if (preg_match("/^p[0-3]$/", $base)) {
                 continue;
             }
             echo "$base ";
@@ -362,9 +425,9 @@ HEREDOC;
         echo PHP_EOL;
 
         exec("play /tmp/Funk.wav > /dev/null 2>&1", $out, $result);
-        if ($result !== 0){
+        if ($result !== 0) {
             error_log("'play' returned exit code $result");
-            foreach ($out as $o){
+            foreach ($out as $o) {
                 error_log($o);
             }
         }
@@ -396,7 +459,7 @@ HEREDOC;
     {
         $dir = dirname(__FILE__);
         $secrets = "$dir/endpoints.secret.php";
-        if (!is_file($secrets)){
+        if (!is_file($secrets)) {
             error_log("Missing config file for sendig to geier");
             return;
         }
@@ -404,7 +467,7 @@ HEREDOC;
         $geier = new ExternalEndpoint(GEIER, TOKEN);
         $geier->getParamsFromRecord($record);
         $geier->method = "GET";
-        if ($this->debug){
+        if ($this->debug) {
             echo "Debug mode, not sending data to website" . PHP_EOL;
             return;
         }
@@ -418,6 +481,105 @@ HEREDOC;
         }
 
     }
+
+    public function saveCurrentState(): bool
+    {
+        if ($this->alreadySaved){
+            return false;
+        }
+        $recordInits = [];
+        foreach ($this->records as $r) {
+            if ($r instanceof Record) {
+                $recordInits[] = $r->initialString;
+            }
+        }
+
+
+        $out = [
+            "records" => $recordInits,
+            "time" => time(),
+            "last_full_playback" => $this->timestampLastPlaybackFull,
+            "last_short_playback" => $this->timestampLastPlaybackShort,
+        ];
+        $json = json_encode($out);
+        if ($json === false) {
+            error_log("Failed to create json");
+            error_log(print_r($out, true));
+        }
+
+        $size = file_put_contents($this->savedStateFile, $json);
+        if ($size === false) {
+            error_log("Failed to save state");
+        } else {
+            $this->alreadySaved = true;
+            echo "Saved current state to $this->savedStateFile, $size bytes" . PHP_EOL;
+            return true;
+        }
+        return false;
+    }
+
+    public function initFromSavedState($file): bool
+    {
+
+        $now = time();
+        $str = file_get_contents($file);
+        $json = json_decode($str);
+
+        if (!isset($json->time)) {
+            error_log("state time not set");
+            return false;
+        }
+
+        $stateTime = $json->time;
+        if (!is_int($stateTime)) {
+            error_log("state time not int");
+            return false;
+        }
+
+        if ($now - $stateTime > self::MAX_RECORDS_AMOUNT * 60) {
+            error_log("state found in $file too old");
+            unlink($file);
+            return false;
+        }
+
+        if (empty($json->records)) {
+            error_log("no records in state");
+            return false;
+        }
+
+        $loadedRecords = 0;
+        foreach ($json->records as $recordStr) {
+            try {
+                $this->records[] = new Record($recordStr);
+                $loadedRecords++;
+            } catch (Exception $e) {
+                error_log($e->getMessage());
+            }
+        }
+
+        if (isset($json->last_full_playback) && is_int($json->last_full_playback)) {
+            $this->timestampLastPlaybackFull = $json->last_full_playback;
+        }
+
+        if (isset($json->last_short_playback) && is_int($json->last_full_playback)) {
+            $this->timestampLastPlaybackShort = $json->last_short_playback;
+        }
+
+
+        echo "$loadedRecords records loaded from saved state" . PHP_EOL;
+        return true;
+
+
+    }
+
+    private function disconnectClients(): void
+    {
+        foreach ($this->clients as $client) {
+            echo "Disconnecting client";
+            $this->disconnect($client);
+        }
+    }
+
 
 }
 

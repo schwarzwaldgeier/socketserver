@@ -22,6 +22,8 @@ class Record
     public float $windspeed;
     public float $windspeedCalibrated;
     public float $windchill;
+    public string $initialString;
+
     private array $idToFieldname = [
             "TE" => "temperature",
             "DR" => "pressure",
@@ -35,6 +37,7 @@ class Record
 
     public function __construct($line)
     {
+        $this->initialString = $line;
         $this->parseStationString($line);
     }
 
