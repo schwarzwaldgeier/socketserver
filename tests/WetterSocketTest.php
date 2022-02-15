@@ -31,8 +31,8 @@ class WetterSocketTest extends TestCase
         $newSocket = new WetterSocket("127.0.0.1", 7950, true, $savegame);
 
         
-        self::assertEquals($newSocket->getTimestampLastPlaybackFull(), $oldSocket->getTimestampLastPlaybackFull());
-        self::assertEquals($newSocket->getTimestampLastPlaybackShort(), $oldSocket->getTimestampLastPlaybackShort());
+        self::assertEquals($newSocket->getTimestampLastBroadcastFull(), $oldSocket->getTimestampLastBroadcastFull());
+        self::assertEquals($newSocket->getTimestampLastBroadcastShort(), $oldSocket->getTimestampLastBroadcastShort());
 
 
         for ($i=0; $i<count($newSocket->getRecords()); $i++){

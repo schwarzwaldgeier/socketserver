@@ -49,30 +49,31 @@ class WetterSocket extends Server
     }
 
     private array $buffer = [];
-    private int $timestampLastPlaybackShort = 0;
+    private int $timestampLastBroadcastShort = 0;
 
     /**
      * @return int
      */
-    public function getTimestampLastPlaybackShort(): int
+    public function getTimestampLastBroadcastShort(): int
     {
-        return $this->timestampLastPlaybackShort;
+        return $this->timestampLastBroadcastShort;
     }
 
     /**
      * @return int
      */
-    public function getTimestampLastPlaybackFull(): int
+    public function getTimestampLastBroadcastFull(): int
     {
-        return $this->timestampLastPlaybackFull;
+        return $this->timestampLastBroadcastFull;
     }
 
     //private int $intervalShortAnnouncement = 1;
-    private int $intervalShortAnnouncement = 5 * 60;
+    private int $intervalShortBroadcast = 5 * 60;
 
-    private int $timestampLastPlaybackFull = 0;
+    private int $timestampLastBroadcastFull = 0;
     //private int $intervalFullAnnouncement = 60;
-    private int $intervalFullAnnouncement = 60 * 60;
+    private int $intervalFullBroadcast = 60 * 60;
+    private int $timestampLastBroadcastAny = 0;
 
 
     /**
@@ -187,16 +188,13 @@ class WetterSocket extends Server
         register_shutdown_function([$this, 'disconnectClients']);
 
 
-        $loaded = false;
-        if (is_file($this->savedStateFile)) {
-            echo "Loading saved state" . PHP_EOL;
-            $loaded = $this->initFromSavedState($this->savedStateFile);
-        }
-        if (!$loaded) {
-            $this->timestampLastPlaybackFull = time();
-            $this->timestampLastPlaybackShort = time();
-        }
 
+        $time = time();
+        $this->timestampLastBroadcastFull = $time;
+        $this->timestampLastBroadcastShort = $time;
+        $this->timestampLastBroadcastAny = $time;
+
+        $this->initFromSavedState($this->savedStateFile);
     }
 
     #[NoReturn] public function handleTerminations(int $signo, mixed $signinfo)
@@ -317,19 +315,23 @@ class WetterSocket extends Server
             }
             $now = time();
 
-            $timeSinceLastFullPlayback = $now - $this->timestampLastPlaybackFull;
-            $timeSinceLastShortPlayback = $now - $this->timestampLastPlaybackShort;
+            $timeSinceLastFullBroadcast = $now - $this->timestampLastBroadcastFull;
+            $timeSinceLastShortBroadcast = $now - $this->timestampLastBroadcastShort;
+            $timeSinceLastAnyBroadcast = $now - $this->timestampLastBroadcastAny;
 
-            echo "time since last full message: $timeSinceLastFullPlayback" . PHP_EOL;
-            echo "time since last short message: $timeSinceLastShortPlayback" . PHP_EOL;
+            echo "time since last any broadcast: $timeSinceLastAnyBroadcast of {$this->intervalShortBroadcast}s" . PHP_EOL;
+            echo "time since last short broadcast: $timeSinceLastShortBroadcast of {$this->intervalShortBroadcast}s" . PHP_EOL;
+            echo "time since last full broadcast: $timeSinceLastFullBroadcast of {$this->intervalFullBroadcast}s" . PHP_EOL;
 
-            if ($timeSinceLastFullPlayback >= $this->intervalFullAnnouncement) {
-                if (isset($record->winddirection)) {
-                    $direction = Record::getWindDirectionNicename($record->winddirection);
-                } else {
-                    $direction = "";
-                }
-                $message = <<<HEREDOC
+            if($timeSinceLastAnyBroadcast >= $this->intervalShortBroadcast)
+            {
+                if ($timeSinceLastFullBroadcast >= $this->intervalFullBroadcast) {
+                    if (isset($record->winddirection)) {
+                        $direction = Record::getWindDirectionNicename($record->winddirection);
+                    } else {
+                        $direction = "";
+                    }
+                    $message = <<<HEREDOC
 p3
 hier-ist-die-wetterstation-des-gleitschirmvereins-baden-auf-dem-merkur
 aktuelle-windmessung $direction $record->windspeed kmh
@@ -338,18 +340,17 @@ staerkste-windboe-der-letzten-20-minuten $strongestGustNiceDirection $strongestG
 tschuess
 p3
 HEREDOC;
-                $this->playAnnouncement($message);
-                $this->timestampLastPlaybackFull = $now;
-            } else {
-
-
-                if ($timeSinceLastShortPlayback > $this->intervalShortAnnouncement && $timeSinceLastFullPlayback > $this->intervalShortAnnouncement ) {
-                    if (isset($record->winddirection)) {
-                        $direction = Record::getWindDirectionNicename($record->winddirection);
-                    } else {
-                        $direction = "";
-                    }
-                    $message = <<<HEREDOC
+                    $this->broadcastRadio($message);
+                    $this->timestampLastBroadcastFull = $now;
+                    $this->timestampLastBroadcastAny = $now;
+                } else {
+                    if ($timeSinceLastShortBroadcast > $this->intervalShortBroadcast) {
+                        if (isset($record->winddirection)) {
+                            $direction = Record::getWindDirectionNicename($record->winddirection);
+                        } else {
+                            $direction = "";
+                        }
+                        $message = <<<HEREDOC
 p3
 aktuelle-windmessung $direction $record->windspeed 
 staerkste-windboe $strongestGustNiceDirection $strongestGustSpeed 
@@ -357,8 +358,10 @@ durchschnitt  $directionAverage  $speedAverage  kmh
 tschuess
 p3
 HEREDOC;
-                    $this->playAnnouncement($message);
-                    $this->timestampLastPlaybackShort = $now;
+                        $this->broadcastRadio($message);
+                        $this->timestampLastBroadcastShort = $now;
+                        $this->timestampLastBroadcastAny = $now;
+                    }
                 }
             }
 
@@ -443,7 +446,7 @@ HEREDOC;
             return;
         }
 
-        echo "Playing: " . PHP_EOL;
+        echo "Radio broadcast: " . PHP_EOL;
         foreach ($wavefiles as $f) {
             $base = basename($f);
             if (preg_match("/^p[0-3]$/", $base)) {
@@ -477,7 +480,7 @@ HEREDOC;
         throw new Exception("Found no file");
     }
 
-    private function playAnnouncement(string $message): void
+    private function broadcastRadio(string $message): void
     {
         $long = $this->createSoundArrayFromString($message);
         $this->playWaveFileArray($long);
@@ -527,8 +530,9 @@ HEREDOC;
         $out = [
             "records" => $recordInits,
             "time" => time(),
-            "last_full_playback" => $this->timestampLastPlaybackFull,
-            "last_short_playback" => $this->timestampLastPlaybackShort,
+            "last_full_broadcast" => $this->timestampLastBroadcastFull,
+            "last_short_broadcast" => $this->timestampLastBroadcastShort,
+            "last_any_broadcast" => $this->timestampLastBroadcastAny,
         ];
         $json = json_encode($out);
         if ($json === false) {
@@ -585,14 +589,19 @@ HEREDOC;
         }
 
 
-        if (isset($json->last_full_playback) && is_int($json->last_full_playback)) {
-            $this->timestampLastPlaybackFull = $json->last_full_playback;
+        if (isset($json->last_full_broadcast) && is_int($json->last_full_broadcast)) {
+            $this->timestampLastBroadcastFull = $json->last_full_broadcast;
             echo "Radio playback time (full) set from state" . PHP_EOL;
         }
 
-        if (isset($json->last_short_playback) && is_int($json->last_full_playback)) {
-            $this->timestampLastPlaybackShort = $json->last_short_playback;
+        if (isset($json->last_short_broadcast) && is_int($json->last_full_broadcast)) {
+            $this->timestampLastBroadcastShort = $json->last_short_broadcast;
             echo "Radio playback time (short) set from state" . PHP_EOL;
+        }
+
+        if (isset($json->last_any_broadcast) && is_int($json->last_any_broadcast)) {
+            $this->timestampLastBroadcastAny = $json->last_any_broadcast;
+            echo "Radio playback time (any) set from state" . PHP_EOL;
         }
 
         if (empty($json->records)) {
