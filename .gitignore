@@ -1,6 +1,7 @@
 ## project specific
 *.secret.php
 .phpunit.result.cache
+wetter_socket_state.json
 
 
 ##### Windows
@@ -477,6 +478,7 @@ composer.lock
 *.css.map
 *.sass.map
 *.scss.map
+
 
 
 

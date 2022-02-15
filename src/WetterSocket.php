@@ -162,7 +162,7 @@ class WetterSocket extends Server
     }
 
 
-    public function __construct($ip = null, $port = self::DEFAULT_PORT, $debug = false, $savedStateFile = "/tmp/wetter_socket_state.json")
+    public function __construct($ip = null, $port = self::DEFAULT_PORT, $debug = false, $savedStateFile = "wetter_socket_state.json")
     {
         parent::__construct($ip, $port);
         $this->debug = $debug;
