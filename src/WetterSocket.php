@@ -436,7 +436,7 @@ HEREDOC;
          * /usr/bin/shnjoin -Oalways -aFUNK -d/var/www/BERGSTATION/ -rnone -q /var/www/BERGSTATION/soundfiles/funk/out-of-order.mus.wav /var/www/BERGSTATION/soundfiles/funk/p0.mus.wav /var/www/BERGSTATION/soundfiles/funk/p0.mus.wav /var/www/BERGSTATION/soundfiles/funk/p0.mus.wav
          */
 
-        $shnArr = ["shnjoin", "-Oalways", "-aFunk", "-d/tmp", "-rnone", "-q"];
+        $shnArr = ["shnjoin", "-Oalways", "-aFunk", "-d/run/wetter_socket", "-rnone", "-q"];
         $shnCommand = array_merge($shnArr, $wavefiles);
         $commandStr = implode(" ", $shnCommand);
         exec("$commandStr > /dev/null", $output, $result_code);
@@ -459,7 +459,7 @@ HEREDOC;
         }
         echo PHP_EOL;
 
-        exec("play /tmp/Funk.wav > /dev/null 2>&1", $out, $result);
+        exec("play /run/wetter_socket/Funk.wav > /dev/null 2>&1", $out, $result);
         if ($result !== 0) {
             error_log("'play' returned exit code $result");
             foreach ($out as $o) {
