@@ -137,6 +137,9 @@ class WetterSocket extends Server
     {
         $dirs = [];
         foreach ($this->records as $r) {
+            /**
+             * @var Record $r
+             */
             $ageDiff = abs($r->getAgeDiff($this->newestRecordTimestamp));
 
             if ($ageDiff > (self::MAX_RECORD_AGE_FOR_AVERAGING * 60)) {
@@ -159,7 +162,7 @@ class WetterSocket extends Server
             $cosSum += cos(deg2rad($value));
         }
 
-        return (((int)rad2deg((int)atan2((int)$sinSum, (int)$cosSum)) + 360) % 360);
+        return (int)round(((rad2deg(atan2($sinSum, $cosSum)) + 360) % 360));
     }
 
 
