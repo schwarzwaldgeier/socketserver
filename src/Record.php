@@ -25,14 +25,24 @@ class Record
     public string $initialString;
 
     private array $idToFieldname = [
-            "TE" => "temperature",
-            "DR" => "pressure",
-            "FE" => "humidity",
-            "WS" => "windspeedMax",
-            "WD" => "windspeed",
-            "WC" => "windchill",
-            "WV" => "winddirection"
-        ];
+        "TE" => "temperature",
+        "DR" => "pressure",
+        "FE" => "humidity",
+        "WS" => "windspeedMax",
+        "WD" => "windspeed",
+        "WC" => "windchill",
+        "WV" => "winddirection"
+    ];
+
+    private array $numDecimals = [
+        "temperature" => 1,
+        "pressure" => 2,
+        "humidity" => 1,
+        "windspeedMax" => 0,
+        "windspeed" => 0,
+        "windchill" => 1,
+        "winddirection => 0"
+    ];
     public float $uncalibratedWindDirection;
 
     public function __construct($line)
@@ -72,21 +82,21 @@ HEREDOC;
 
     public function isValid(): bool
     {
-        foreach ($this->idToFieldname as $fieldname){
-            if ($fieldname !== 'winddirection' && !isset($this->{$fieldname})){
+        foreach ($this->idToFieldname as $fieldname) {
+            if ($fieldname !== 'winddirection' && !isset($this->{$fieldname})) {
                 error_log("Invalid record: $fieldname missing");
                 return false;
             }
         }
 
-        if (isset($this->uncalibratedWindDirection) && $this->uncalibratedWindDirection > 360){
+        if (isset($this->uncalibratedWindDirection) && $this->uncalibratedWindDirection > 360) {
             error_log("Invalid wind direction");
             return false;
         }
         return true;
     }
 
-    public function getAgeDiff(int $referenceAge):int
+    public function getAgeDiff(int $referenceAge): int
     {
         return $referenceAge - $this->secondsSinceStartup;
     }
@@ -107,10 +117,7 @@ HEREDOC;
         $time = $items[0];
 
 
-
-
         $timeParts = explode(":", $time);
-
 
 
         $date = $items[1];
@@ -132,8 +139,8 @@ HEREDOC;
         $brokenDate->setDate($year, $month, $day);
 
         $startupDate = new DateTime();
-        $startupDate->setDate(2000,1,1);
-        $startupDate->setTime(0,0);
+        $startupDate->setDate(2000, 1, 1);
+        $startupDate->setTime(0, 0);
 
 
         $this->secondsSinceStartup = $brokenDate->getTimestamp() - $startupDate->getTimestamp();
@@ -153,30 +160,29 @@ HEREDOC;
             }
 
             $this->{$fieldname} = (float)$value;
-            $this->{$fieldname} = round($this->{$fieldname});
+            $precision = $this->numDecimals[$fieldname] ?? 0;
+            $this->{$fieldname} = round($this->{$fieldname}, $precision);
+
         }
 
-        if (isset($this->winddirection)){
-            if ($this->winddirection == -99997 )
-            {
+        if (isset($this->winddirection)) {
+            if ($this->winddirection == -99997) {
                 unset ($this->winddirection);
-            } else
-            {
+            } else {
                 $this->uncalibratedWindDirection = $this->winddirection;
                 $this->winddirection = ((int)round($this->uncalibratedWindDirection) + 360 - self::WIND_DIRECTION_OFFSET) % 360;
 
             }
         }
 
-        if (isset($this->windspeed)){
+        if (isset($this->windspeed)) {
             $this->windspeedCalibrated = round($this->windspeed * self::TIMM_FACTOR);
         }
 
-        if (isset($this->windspeedMax)){
+        if (isset($this->windspeedMax)) {
             $this->windspeedMaxCalibrated = round($this->windspeedMax * self::TIMM_FACTOR);
         }
     }
-
 
 
 }
