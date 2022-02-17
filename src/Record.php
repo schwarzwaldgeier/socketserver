@@ -23,6 +23,11 @@ class Record
     public float $windspeedCalibrated;
     public float $windchill;
     public string $initialString;
+    public int $timeReceived;
+
+    public string $geierResponse; //TODO persist is save file
+
+
 
     private array $idToFieldname = [
         "TE" => "temperature",
@@ -49,6 +54,7 @@ class Record
     {
         $this->initialString = $line;
         $this->parseStationString($line);
+        $this->timeReceived = time(); //TODO persist in savefile
     }
 
     public static function getWindDirectionNicename(float $windDirection): string
@@ -184,5 +190,33 @@ HEREDOC;
         }
     }
 
+    public function toAssocArray(): array
+    {
+
+        $windDirName = null;
+        if (isset($this->winddirection)){
+            $windDirName = self::getWindDirectionNicename($this->winddirection);
+        }
+        $arr = [
+            "initial_string" => $this->initialString,
+            "readings" => ["windspeed" => $this->windspeed,
+                "windspeed_max" => $this->windspeedMax,
+                "wind_direction" => $this->winddirection ?? null,
+                "wind_direction_name" => $windDirName,
+                "wind_chill" => $this->windchill,
+                "temperature" => $this->temperature,
+                "pressure" => $this->pressure,
+                "humidity" => $this->humidity],
+            "time_since_station_start" => $this->secondsSinceStartup,
+            "time_received" => $this->timeReceived,
+            "age" => time() - $this->timeReceived
+        ];
+        if (isset($this->geierResponse)){
+            $arr["response_from_website"] = $this->geierResponse;
+        }
+
+
+        return $arr;
+    }
 
 }

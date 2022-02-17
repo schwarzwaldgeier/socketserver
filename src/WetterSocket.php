@@ -49,7 +49,7 @@ class WetterSocket extends Server
     }
 
     private array $buffer = [];
-    private int $timestampLastBroadcastShort = 0;
+    private int $timestampLastBroadcastShort;
 
     /**
      * @return int
@@ -70,10 +70,10 @@ class WetterSocket extends Server
     //private int $intervalShortAnnouncement = 1;
     private int $intervalShortBroadcast = 5 * 60;
 
-    private int $timestampLastBroadcastFull = 0;
+    private int $timestampLastBroadcastFull;
     //private int $intervalFullAnnouncement = 60;
     private int $intervalFullBroadcast = 60 * 60;
-    private int $timestampLastBroadcastAny = 0;
+    private int $timestampLastBroadcastAny;
 
 
     /**
@@ -162,7 +162,7 @@ class WetterSocket extends Server
             $cosSum += cos(deg2rad($value));
         }
 
-        return (int)round(((rad2deg(atan2($sinSum, $cosSum)) + 360) % 360));
+        return round((rad2deg(atan2($sinSum, $cosSum)) + 360)) % 360;
     }
 
 
@@ -189,7 +189,6 @@ class WetterSocket extends Server
 
         register_shutdown_function([$this, 'saveCurrentState']);
         register_shutdown_function([$this, 'disconnectClients']);
-
 
 
         $time = time();
@@ -222,153 +221,22 @@ class WetterSocket extends Server
         echo 'Connection Established', "\n";
     }
 
-    /** @noinspection PhpUnusedParameterInspection */
+
+    /**
+     * @noinspection PhpUnusedParameterInspection
+     */
     public function onInput(Server $server, Socket $client, $message)
     {
-        $messages = explode("\n", $message);
 
-        foreach ($messages as $message) {
-            $this->buffer[] = $message;
-            $bufSize = count($this->buffer);
-            if ($bufSize > 2) {
-                array_shift($this->buffer);
-            }
-            $bufSize = count($this->buffer);
-            if ($bufSize > 2) { //should never happen but whatever
-                $this->buffer = [
-                    $this->buffer[$bufSize - 1],
-                    $this->buffer[$bufSize - 2],
-                ];
-            }
-
-            //check if buffer is at the right state, i.e. timestamp is in first message, rest in  second
-            $partsFirst = explode(",", $this->buffer[0]);
-            if (!isset($this->buffer[1])) {
-                continue;
-            }
-            $partsSecond = explode(",", $this->buffer[1]);
-            if (!isset($partsFirst[0])) {
-                continue;
-            }
-            if (!isset($partsSecond[0])) {
-                continue;
-            }
-
-            $partsFirst[0] = trim($partsFirst[0]);
-
-            if (!preg_match("/^\d{2}:\d{2}:\d{2}$/", $partsFirst[0])) {
-                continue;
-            }
-
-
-            $compiledMessage = $this->buffer[0] . $this->buffer[1];
-            echo date("d.m.Y H:i:s") . PHP_EOL;
-            echo "Received: $compiledMessage" . PHP_EOL . PHP_EOL;
+        if (str_contains($message, "HTTP/1.1")) {
             try {
-                $client->write($compiledMessage, strlen($compiledMessage));
-            } catch (SocketException $e) {
-                echo $e->getMessage();
+                $this->handleHttpRequest($client);
+            } catch (Exception $e) {
+                error_log($e->getMessage());
             }
-
-
-            $record = new Record($compiledMessage);
-            if (!$record->isValid()) {
-                continue;
-            }
-
-            $this->newestRecordTimestamp = $record->secondsSinceStartup;
-
-            echo $record . PHP_EOL;
-            $this->sendToGeier($record);
-
-
-            $this->records[] = $record;
-            $recordBufferSize = self::MAX_RECORD_AGE_FOR_AVERAGING;
-
-
-            while (count($this->records) > $recordBufferSize) {
-                array_shift($this->records);
-            }
-
-
-            $count = count($this->records);
-            echo "$count of $recordBufferSize records in buffer" . PHP_EOL;
-
-
-            $dirAvg = $this->getDirectionAverage();
-            if ($dirAvg === -1) {
-                $directionAverage = "";
-            } else {
-                $directionAverage = Record::getWindDirectionNicename($dirAvg);
-            }
-
-            $speedAverage = $this->getSpeedAverage();
-
-            $recordWithStrongestGust = $this->getStrongestGust();
-            if ($recordWithStrongestGust instanceof Record) {
-                $strongestGustSpeed = $recordWithStrongestGust->windspeedMax;
-                if (isset($recordWithStrongestGust->winddirection)) {
-                    $strongestGustNiceDirection = Record::getWindDirectionNicename($recordWithStrongestGust->winddirection);
-                } else {
-                    $strongestGustNiceDirection = ""; //nullwind
-                }
-            } else {
-                $strongestGustSpeed = 0;
-                $strongestGustNiceDirection = "";
-            }
-            $now = time();
-
-            $timeSinceLastFullBroadcast = $now - $this->timestampLastBroadcastFull;
-            $timeSinceLastShortBroadcast = $now - $this->timestampLastBroadcastShort;
-            $timeSinceLastAnyBroadcast = $now - $this->timestampLastBroadcastAny;
-
-            echo "time since last any broadcast: $timeSinceLastAnyBroadcast of {$this->intervalShortBroadcast}s" . PHP_EOL;
-            echo "time since last short broadcast: $timeSinceLastShortBroadcast of {$this->intervalShortBroadcast}s" . PHP_EOL;
-            echo "time since last full broadcast: $timeSinceLastFullBroadcast of {$this->intervalFullBroadcast}s" . PHP_EOL;
-
-            if($timeSinceLastAnyBroadcast >= $this->intervalShortBroadcast)
-            {
-                if ($timeSinceLastFullBroadcast >= $this->intervalFullBroadcast) {
-                    if (isset($record->winddirection)) {
-                        $direction = Record::getWindDirectionNicename($record->winddirection);
-                    } else {
-                        $direction = "";
-                    }
-                    $message = <<<HEREDOC
-p3
-hier-ist-die-wetterstation-des-gleitschirmvereins-baden-auf-dem-merkur
-aktuelle-windmessung $direction $record->windspeed kmh
-durchschnittlicher-wind-der-letzten-20-minuten $directionAverage $speedAverage kmh
-staerkste-windboe-der-letzten-20-minuten $strongestGustNiceDirection $strongestGustSpeed kmh
-tschuess
-p3
-HEREDOC;
-                    $this->broadcastRadio($message);
-                    $this->timestampLastBroadcastFull = $now;
-                    $this->timestampLastBroadcastAny = $now;
-                } else {
-                    if ($timeSinceLastShortBroadcast > $this->intervalShortBroadcast) {
-                        if (isset($record->winddirection)) {
-                            $direction = Record::getWindDirectionNicename($record->winddirection);
-                        } else {
-                            $direction = "";
-                        }
-                        $message = <<<HEREDOC
-p3
-aktuelle-windmessung $direction $record->windspeed 
-staerkste-windboe $strongestGustNiceDirection $strongestGustSpeed 
-durchschnitt  $directionAverage  $speedAverage  kmh 
-tschuess
-p3
-HEREDOC;
-                        $this->broadcastRadio($message);
-                        $this->timestampLastBroadcastShort = $now;
-                        $this->timestampLastBroadcastAny = $now;
-                    }
-                }
-            }
-
-            echo "---" . PHP_EOL;
+        } else {
+            echo $message . PHP_EOL;
+            $this->handleStationInput($message, $client);
         }
     }
 
@@ -424,7 +292,7 @@ HEREDOC;
     /** @noinspection PhpUnusedParameterInspection */
     public function onDisconnect(Server $server, Socket $client, $message)
     {
-        echo 'Disconnection', "\n";
+
     }
 
 
@@ -436,7 +304,24 @@ HEREDOC;
          * /usr/bin/shnjoin -Oalways -aFUNK -d/var/www/BERGSTATION/ -rnone -q /var/www/BERGSTATION/soundfiles/funk/out-of-order.mus.wav /var/www/BERGSTATION/soundfiles/funk/p0.mus.wav /var/www/BERGSTATION/soundfiles/funk/p0.mus.wav /var/www/BERGSTATION/soundfiles/funk/p0.mus.wav
          */
 
-        $shnArr = ["shnjoin", "-Oalways", "-aFunk", "-d/run/wetter_socket", "-rnone", "-q"];
+        $tempDir = "/run/wetter_socket";
+        if (PHP_OS === "Darwin") {
+            $tempDir = "/tmp/wetter_socket";
+        }
+        if (!is_dir($tempDir)){
+            if (!mkdir($tempDir)){
+                error_log("Unable to create broadcast file. Please create $tempDir");
+                return;
+            }
+        }
+
+        if (!is_writable($tempDir)){
+            error_log("$tempDir not writable for broadcast");
+            return;
+        }
+
+
+        $shnArr = ["shnjoin", "-Oalways", "-aFunk", "-d$tempDir", "-rnone", "-q"];
         $shnCommand = array_merge($shnArr, $wavefiles);
         $commandStr = implode(" ", $shnCommand);
         exec("$commandStr > /dev/null", $output, $result_code);
@@ -459,7 +344,8 @@ HEREDOC;
         }
         echo PHP_EOL;
 
-        exec("play /run/wetter_socket/Funk.wav > /dev/null 2>&1", $out, $result);
+
+        exec("play $tempDir/Funk.wav > /dev/null 2>&1", $out, $result);
         if ($result !== 0) {
             error_log("'play' returned exit code $result");
             foreach ($out as $o) {
@@ -513,6 +399,7 @@ HEREDOC;
 
         } else {
             echo "Sent to website. Response was: " . $result["response"] . PHP_EOL;
+            $record->geierResponse = $result["response"];
         }
 
     }
@@ -640,6 +527,227 @@ HEREDOC;
     {
         foreach ($this->clients as $client) {
             $this->disconnect($client);
+        }
+    }
+
+    private function handleStationInput($message, Socket $client): void
+    {
+        $messages = explode("\n", $message);
+        foreach ($messages as $message) {
+            $this->buffer[] = $message;
+            $bufSize = count($this->buffer);
+            if ($bufSize > 2) {
+                array_shift($this->buffer);
+            }
+            $bufSize = count($this->buffer);
+            if ($bufSize > 2) { //should never happen but whatever
+                $this->buffer = [
+                    $this->buffer[$bufSize - 1],
+                    $this->buffer[$bufSize - 2],
+                ];
+            }
+
+            //check if buffer is at the right state, i.e. timestamp is in first message, rest in  second
+            $partsFirst = explode(",", $this->buffer[0]);
+            if (!isset($this->buffer[1])) {
+                continue;
+            }
+            $partsSecond = explode(",", $this->buffer[1]);
+            if (!isset($partsFirst[0])) {
+                continue;
+            }
+            if (!isset($partsSecond[0])) {
+                continue;
+            }
+
+            $partsFirst[0] = trim($partsFirst[0]);
+
+            if (!preg_match("/^\d{2}:\d{2}:\d{2}$/", $partsFirst[0])) {
+                continue;
+            }
+
+
+            $compiledMessage = $this->buffer[0] . $this->buffer[1];
+            echo date("d.m.Y H:i:s") . PHP_EOL;
+            echo "Received: $compiledMessage" . PHP_EOL . PHP_EOL;
+            try {
+                $client->write($compiledMessage, strlen($compiledMessage));
+            } catch (SocketException $e) {
+                echo $e->getMessage();
+            }
+
+
+            $record = new Record($compiledMessage);
+            if (!$record->isValid()) {
+                continue;
+            }
+
+            $this->newestRecordTimestamp = $record->secondsSinceStartup;
+
+            echo $record . PHP_EOL;
+            $this->sendToGeier($record);
+
+
+            $this->records[] = $record;
+            $recordBufferSize = self::MAX_RECORD_AGE_FOR_AVERAGING;
+
+
+            while (count($this->records) > $recordBufferSize) {
+                array_shift($this->records);
+            }
+
+
+            $count = count($this->records);
+            echo "$count of $recordBufferSize records in buffer" . PHP_EOL;
+
+
+            $dirAvg = $this->getDirectionAverage();
+            if ($dirAvg === -1) {
+                $directionAverage = "";
+            } else {
+                $directionAverage = Record::getWindDirectionNicename($dirAvg);
+            }
+
+            $speedAverage = $this->getSpeedAverage();
+
+            $recordWithStrongestGust = $this->getStrongestGust();
+            if ($recordWithStrongestGust instanceof Record) {
+                $strongestGustSpeed = $recordWithStrongestGust->windspeedMax;
+                if (isset($recordWithStrongestGust->winddirection)) {
+                    $strongestGustNiceDirection = Record::getWindDirectionNicename($recordWithStrongestGust->winddirection);
+                } else {
+                    $strongestGustNiceDirection = ""; //nullwind
+                }
+            } else {
+                $strongestGustSpeed = 0;
+                $strongestGustNiceDirection = "";
+            }
+            $now = time();
+
+            $timeSinceLastFullBroadcast = $now - $this->timestampLastBroadcastFull;
+            $timeSinceLastShortBroadcast = $now - $this->timestampLastBroadcastShort;
+            $timeSinceLastAnyBroadcast = $now - $this->timestampLastBroadcastAny;
+
+            echo "time since last any broadcast: $timeSinceLastAnyBroadcast of {$this->intervalShortBroadcast}s" . PHP_EOL;
+            echo "time since last short broadcast: $timeSinceLastShortBroadcast of {$this->intervalShortBroadcast}s" . PHP_EOL;
+            echo "time since last full broadcast: $timeSinceLastFullBroadcast of {$this->intervalFullBroadcast}s" . PHP_EOL;
+
+            if ($timeSinceLastAnyBroadcast >= $this->intervalShortBroadcast) {
+                if ($timeSinceLastFullBroadcast >= $this->intervalFullBroadcast) {
+                    if (isset($record->winddirection)) {
+                        $direction = Record::getWindDirectionNicename($record->winddirection);
+                    } else {
+                        $direction = "";
+                    }
+                    $message = <<<HEREDOC
+p3
+hier-ist-die-wetterstation-des-gleitschirmvereins-baden-auf-dem-merkur
+aktuelle-windmessung $direction $record->windspeed kmh
+durchschnittlicher-wind-der-letzten-20-minuten $directionAverage $speedAverage kmh
+staerkste-windboe-der-letzten-20-minuten $strongestGustNiceDirection $strongestGustSpeed kmh
+tschuess
+p3
+HEREDOC;
+                    $this->broadcastRadio($message);
+                    $this->timestampLastBroadcastFull = $now;
+                    $this->timestampLastBroadcastAny = $now;
+                } else {
+                    if ($timeSinceLastShortBroadcast > $this->intervalShortBroadcast) {
+                        if (isset($record->winddirection)) {
+                            $direction = Record::getWindDirectionNicename($record->winddirection);
+                        } else {
+                            $direction = "";
+                        }
+                        $message = <<<HEREDOC
+p3
+aktuelle-windmessung $direction $record->windspeed 
+staerkste-windboe $strongestGustNiceDirection $strongestGustSpeed 
+durchschnitt  $directionAverage  $speedAverage  kmh 
+tschuess
+p3
+HEREDOC;
+                        $this->broadcastRadio($message);
+                        $this->timestampLastBroadcastShort = $now;
+                        $this->timestampLastBroadcastAny = $now;
+                    }
+                }
+            }
+
+            echo "---" . PHP_EOL;
+        }
+    }
+
+    private function handleHttpRequest(Socket $client): void
+    {
+
+        $records = [];
+        foreach ($this->records as $r) {
+            /**
+             * @var Record $r
+             */
+            $records[] = $r->toAssocArray();
+        }
+        $notAvailable = "n/a";
+        $maxWindspeedRecord = $this->getStrongestGust() ?? $notAvailable;
+        $directionAverage = $this->getDirectionAverage() ?? $notAvailable;
+        $windspeedMax = $maxWindspeedRecord->windspeedMax ?? $notAvailable;
+
+        $winddirection = $maxWindspeedRecord->winddirection ?? $notAvailable;
+        if (is_float($winddirection)) {
+            try {
+                $windDirectionNicename = Record::getWindDirectionNicename($winddirection) ?? $notAvailable;
+            } catch (Exception $e) {
+                error_log($e->getMessage());
+                $windDirectionNicename = $notAvailable;
+            }
+        } else {
+            $windDirectionNicename = $notAvailable;
+        }
+        $speedAverage = $this->getSpeedAverage() ?? $notAvailable;
+        $windDirectionNicenameAvg = Record::getWindDirectionNicename($directionAverage) ?? $notAvailable;
+        $timestampLastBroadcastAny = $this->timestampLastBroadcastAny ?? $notAvailable;
+        $timestampLastBroadcastShort = $this->timestampLastBroadcastShort ?? $notAvailable;
+        $timestampLastBroadcastFull = $this->timestampLastBroadcastFull ?? $notAvailable;
+        $info = [
+
+            "period" => [
+                "timespan" => self::MAX_RECORD_AGE_FOR_AVERAGING * 60,
+                "max_windspeed" => [
+                    "windspeed" => $windspeedMax,
+                    "wind_direction" => $winddirection,
+                    "wind_direction_name" => $windDirectionNicename
+                ],
+                "average_windspeed" => [
+                    "windspeed" => $speedAverage,
+                    "wind_direction" => $directionAverage,
+                    "wind_direction_name" => $windDirectionNicenameAvg
+                ],
+            ],
+            "last_broadcast_times" => [
+                "any" => $timestampLastBroadcastAny,
+                "short" => $timestampLastBroadcastShort,
+                "full" => $timestampLastBroadcastFull
+            ],
+            "records" => array_reverse($records),
+        ];
+        $json = json_encode($info);
+        $size = strlen($json);
+        $reply = <<<HEREDOC
+HTTP/1.1 200 OK
+Server: WetterSocket/1.0.0 (Unix)
+Content-Length: $size
+Content-Language: en
+Connection: close
+Content-Type: application/json
+
+$json
+HEREDOC;
+
+
+        try {
+            $client->send($reply);
+        } catch (SocketException $e) {
+            error_log($e->getMessage());
         }
     }
 

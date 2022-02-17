@@ -6,6 +6,7 @@ namespace Schwarzwaldgeier\WetterSocket;
 use Navarr\Socket\Exception\SocketException;
 
 pcntl_async_signals(true);
+
 $dir = dirname(__FILE__);
 require_once "WetterSocket.php";
 require_once "$dir/../vendor/autoload.php";
@@ -20,7 +21,7 @@ if (isset($argv[1])){
     $ip = $argv[1];
 }
 $debug = false;
-if (in_array("--debug", $argv)){
+if (isset($argv) && in_array("--debug", $argv)){
     echo "Debug mode enabled" . PHP_EOL;
     $debug = true;
 }

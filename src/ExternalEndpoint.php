@@ -30,11 +30,11 @@ class ExternalEndpoint
             CURLOPT_SSL_VERIFYPEER => false,
         );
 
-        return $this->basicCurl($options);
+        return ExternalEndpoint::basicCurl($options);
 
     }
 
-    private function basicCurl($options): array
+    public static function basicCurl($options): array
     {
         $headers = [];
 
