@@ -30,7 +30,13 @@ try {
     date_default_timezone_set('Europe/Berlin');
 
     println("Starting server on $ip:$port");
-    $server = new WetterSocket($ip, $port, $debug);
+    $saveFileDir = getenv("HOME");
+    $savefile = $saveFileDir . "/wetter_socket_state.json" ;
+    if (!is_writable($saveFileDir)){
+        error_log("$savefile not writeable");
+    }
+
+    $server = new WetterSocket($ip, $port, $debug, $savefile);
 
     $server->run();
 
