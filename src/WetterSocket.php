@@ -308,14 +308,14 @@ class WetterSocket extends Server
         if (PHP_OS === "Darwin") {
             $tempDir = "/tmp/wetter_socket";
         }
-        if (!is_dir($tempDir)){
-            if (!mkdir($tempDir)){
+        if (!is_dir($tempDir)) {
+            if (!mkdir($tempDir)) {
                 error_log("Unable to create broadcast file. Please create $tempDir");
                 return;
             }
         }
 
-        if (!is_writable($tempDir)){
+        if (!is_writable($tempDir)) {
             error_log("$tempDir not writable for broadcast");
             return;
         }
@@ -345,13 +345,9 @@ class WetterSocket extends Server
         echo PHP_EOL;
 
 
-        exec("play $tempDir/Funk.wav > /dev/null 2>&1", $out, $result);
-        if ($result !== 0) {
-            error_log("'play' returned exit code $result");
-            foreach ($out as $o) {
-                error_log($o);
-            }
-        }
+        $nohupCommand = 'bash -c "exec nohup setsid play ' . $tempDir . '/Funk.wav > /dev/null 2>&1 &"';
+        echo "command: $nohupCommand" . PHP_EOL;
+        exec($nohupCommand);
 
     }
 
@@ -652,7 +648,7 @@ HEREDOC;
                     $this->timestampLastBroadcastFull = $now;
                     $this->timestampLastBroadcastAny = $now;
                 } else {
-                    if ($timeSinceLastShortBroadcast > $this->intervalShortBroadcast) {
+                    if ($timeSinceLastShortBroadcast >= $this->intervalShortBroadcast) {
                         if (isset($record->winddirection)) {
                             $direction = Record::getWindDirectionNicename($record->winddirection);
                         } else {
