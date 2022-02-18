@@ -10,20 +10,37 @@ $options = array(
     CURLOPT_SSL_VERIFYPEER => false,
 );
 
-$serverlog = "(no log found)";
+$serverlog = "(nichts gefunden)";
 $logfile = "serverlog.txt";
 if (is_file($logfile)){
     $serverlog = file_get_contents($logfile);
 }
 $response = ExternalEndpoint::basicCurl($options);
 if (empty($response['response'])){
-    echo "No response from socket server. It's probably not running.\nThis can also happen if you have called this website during radio playback because threading is not yet implemented." . PHP_EOL;
-    echo "Latest log file:<pre>" .PHP_EOL;
+    $msg = <<<HEREDOC
+<p>
+Der Socket-Server antwortet nicht.
+Häufigster Grund: Er ist gerade damit beschäftigt, die Radiodurchsage abzuspielen, und kann nicht auf die Status-Abfrage antworten. Eine nohup-Version ist in Arbeit.
+</p>
+<p>
+Falls das Problem bestehen bleibt: Bitte Prozess raussuchen (ps ax|grep wetter) und mit kill -6 abschießen (nicht: kill -9). Er startet dann automatisch per cron neu.
+</p>
+<p>Falls auch das nichts hilft: Raspi durchbooten und 2-3 Minuten warten. Es ist alles so eingerichtet, dass nach Systemstart nichts manuell getan werden muss.</p>
+
+
+
+HEREDOC;
+
+    echo $msg;
+    echo "Letzte bekannte Logdaten:<pre>" .PHP_EOL;
     echo $serverlog;
     die();
 }
 
-
+if (in_array("json", array_keys($_GET))){
+    echo $response["response"];
+    die();
+}
 $data = json_decode($response["response"]);
 
 $avgTime = $data->period->timespan / 60;
@@ -74,7 +91,7 @@ $output = <<<HEREDOC
 <h1>Schwarzwaldgeier Wetterserver</h1>
 <h2>Status</h2>
 <ul>
-<li>Raspberry: Läuft!</li>
+<li>Raspberry: Läuft! (Offensichtlich, dieser Webserver läuft nämlich auch drauf...)</li>
 <li>Station: Die letzte Messung wurde vor <strong>{$data->records[0]->age}</strong> Sekunden empfangen.</li>
 <li>Es befinden sich <strong>$numRecords</strong> von idealerweise 20 Messungen im Arbeitsspeicher</li>
 <li>Die letzte <em>kurze</em> Funkdurchsage wurde vor <strong>$lastShortBroadcastAge</strong> Sekunden abgespielt.</li>
