@@ -41,7 +41,7 @@ class Record
 
     private array $numDecimals = [
         "temperature" => 1,
-        "pressure" => 2,
+        "pressure" => 1,
         "humidity" => 1,
         "windspeedMax" => 0,
         "windspeed" => 0,

@@ -93,7 +93,7 @@ HEREDOC;
 
         $avg = $socket->getDirectionAverage();
 
-        $this->assertEquals(246, $avg);
+        $this->assertEquals(215, $avg);
     }
 
     private function createSavefile(): string
