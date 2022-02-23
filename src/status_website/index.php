@@ -1,5 +1,9 @@
 <?php
 
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 use Schwarzwaldgeier\WetterSocket\ExternalEndpoint;
 
 require_once("../ExternalEndpoint.php");
@@ -50,7 +54,11 @@ $data = json_decode($response["response"]);
 
 $avgTime = $data->period->timespan / 60;
 
+$funkwav = "Funk.wav?" . hash_file("md5", "Funk.wav");
+
+
 $tr = [];
+
 
 foreach ($data->records as $key => $record) {
     $niceAge = secondsToTime($record->age);
@@ -76,6 +84,7 @@ $trStr = implode(PHP_EOL, $tr);
 
 $lastShortBroadcastAge = secondsToTime(time() - $data->last_broadcast_times->short);
 $lastFullBroadcastAge = secondsToTime(time() - $data->last_broadcast_times->full);
+$lastBroadcastText = $data->last_broadcast_times->text;
 
 
 $numRecords = count($data->records);
@@ -110,6 +119,18 @@ $output = <<<HEREDOC
 <ul>
 <li>Die letzte <em>kurze</em> Funkdurchsage wurde vor <strong>$lastShortBroadcastAge</strong> abgespielt.</li>
 <li>Die letzte <em>lange</em> Funkdurchsage wurde vor <strong>$lastFullBroadcastAge</strong> abgespielt.</li>
+<li>
+Die letzte abgespielte Durchsage klang so: 
+<figure>
+<figcaption><blockquote>
+  <p>"$lastBroadcastText"</p>
+</blockquote></figcaption>
+<audio controls>
+
+  <source src="$funkwav" type="audio/wav">
+Your browser does not support the audio element.
+</audio>
+</figure></li>
 </ul>
 <h3>Raspberry</h3>
 <ul>

@@ -31,6 +31,7 @@ class WetterSocket extends Server
     private string $savedStateFile;
     private bool $alreadySaved = false;
     private int $newestRecordTimestamp = 0;
+    private string $lastBroadcastString;
 
     /**
      * @return array
@@ -284,7 +285,6 @@ class WetterSocket extends Server
                 $files[] = $file;
             }
         }
-
         return $files;
 
     }
@@ -323,7 +323,9 @@ class WetterSocket extends Server
 
         $shnArr = ["shnjoin", "-Oalways", "-aFunk", "-d$tempDir", "-rnone", "-q"];
         $shnCommand = array_merge($shnArr, $wavefiles);
+
         $commandStr = implode(" ", $shnCommand);
+        echo $commandStr . PHP_EOL;
         exec("$commandStr > /dev/null", $output, $result_code);
         if ($result_code !== 0) {
             error_log("Failed to join wav files");
@@ -332,6 +334,12 @@ class WetterSocket extends Server
                 error_log($o);
             }
             return;
+        } else {
+            $this->lastBroadcastString = "";
+            foreach ($wavefiles as $wv){
+                $this->lastBroadcastString .= basename($wv) . " ";
+            }
+            $this->lastBroadcastString = trim($this->lastBroadcastString);
         }
 
         echo "Radio broadcast: " . PHP_EOL;
@@ -367,8 +375,8 @@ class WetterSocket extends Server
 
     private function broadcastRadio(string $message): void
     {
-        $long = $this->createSoundArrayFromString($message);
-        $this->playWaveFileArray($long);
+        $soundfiles = $this->createSoundArrayFromString($message);
+        $this->playWaveFileArray($soundfiles);
 
     }
 
@@ -704,6 +712,7 @@ HEREDOC;
         $timestampLastBroadcastAny = $this->timestampLastBroadcastAny ?? $notAvailable;
         $timestampLastBroadcastShort = $this->timestampLastBroadcastShort ?? $notAvailable;
         $timestampLastBroadcastFull = $this->timestampLastBroadcastFull ?? $notAvailable;
+        $lastBroadcastString = $this->lastBroadcastString ?? "";
         $info = [
 
             "period" => [
@@ -722,7 +731,8 @@ HEREDOC;
             "last_broadcast_times" => [
                 "any" => $timestampLastBroadcastAny,
                 "short" => $timestampLastBroadcastShort,
-                "full" => $timestampLastBroadcastFull
+                "full" => $timestampLastBroadcastFull,
+                "text" => $lastBroadcastString
             ],
             "records" => array_reverse($records),
         ];
