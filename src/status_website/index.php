@@ -53,6 +53,10 @@ if (in_array("json", array_keys($_GET))) {
 $data = json_decode($response["response"]);
 
 $avgTime = $data->period->timespan / 60;
+if (!is_file("Funk.wav")){
+    echo "Please create a symlink to the Funk.wav file in the same directory as this script:<br>";
+echo "<pre>ln -s /run/wetter_socket/Funk.wav /usr/local/bin/wetterstation_socket/src/status_website/Funk.wav</pre>";
+}
 
 $funkwav = "Funk.wav?" . hash_file("md5", "Funk.wav");
 
@@ -88,9 +92,13 @@ $lastBroadcastText = $data->last_broadcast_times->text;
 
 
 $numRecords = count($data->records);
-$age = $data->records[0]->age;
+$age = $data->records[0]->age ?? 0;
 $ageReadable = secondsToTime($age);
-$stationUptime = secondsToTime((int)$data->records[0]->time_since_station_start - $age);
+$time_since_station_start = 0;
+if (isset ($data->records[0])) {
+    $time_since_station_start = (int)$data->records[0]->time_since_station_start;
+}
+$stationUptime = secondsToTime($time_since_station_start - $age);
 
 
 $output = <<<HEREDOC
