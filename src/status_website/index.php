@@ -15,10 +15,14 @@ $options = array(
 );
 
 $serverlog = "(nichts gefunden)";
-$logfile = "serverlog.txt";
+$logfile = "/run/wetter_socket/socket.log";
 if (is_file($logfile)) {
     $serverlog = file_get_contents($logfile);
 }
+$lines = explode("\n", $serverlog);
+$reversed_lines = array_reverse($lines);
+$reversed_serverlog = implode("\n", $reversed_lines);
+
 $response = ExternalEndpoint::basicCurl($options);
 if (empty($response['response'])) {
     $msg = <<<HEREDOC
@@ -36,7 +40,7 @@ HEREDOC;
 
     echo $msg;
     echo "Letzte bekannte Logdaten:<pre>" . PHP_EOL;
-    echo $serverlog;
+    echo $reversed_serverlog;
     die();
 }
 
@@ -53,12 +57,15 @@ if (in_array("json", array_keys($_GET))) {
 $data = json_decode($response["response"]);
 
 $avgTime = $data->period->timespan / 60;
+$funkwav = "";
 if (!is_file("Funk.wav")){
-    echo "Please create a symlink to the Funk.wav file in the same directory as this script:<br>";
-echo "<pre>ln -s /run/wetter_socket/Funk.wav /usr/local/bin/wetterstation_socket/src/status_website/Funk.wav</pre>";
+    echo "No radio file - yet. This is normal after reboot. If the problem persists,";
+    echo "please create a symlink to the Funk.wav file in the same directory as this script:<br>";
+    echo "<pre>sudo ln -s /run/wetter_socket/Funk.wav /usr/local/bin/wetterstation_socket/src/status_website/Funk.wav</pre>";
+} else {
+    $funkwav = "Funk.wav?" . hash_file("md5", "Funk.wav");
 }
 
-$funkwav = "Funk.wav?" . hash_file("md5", "Funk.wav");
 
 
 $tr = [];
@@ -177,7 +184,8 @@ Your browser does not support the audio element.
 <details>
 <summary>$logfile</summary>
 <pre>
-$serverlog
+(Neueste Einträge zuerst):
+$reversed_serverlog;
 </pre>
 </details>
 
