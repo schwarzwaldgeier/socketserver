@@ -219,7 +219,9 @@ class WetterSocket extends Server
     /** @noinspection PhpUnusedParameterInspection */
     public function onConnect(Server $server, Socket $client, $message)
     {
-        echo 'Connection Established', "\n";
+        echo 'Connection Established'. PHP_EOL;
+        echo "message: " . PHP_EOL;
+        echo $message . PHP_EOL;
     }
 
 
